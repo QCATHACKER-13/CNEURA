@@ -10,7 +10,9 @@ Future projects:
 - Hardware integration: After successfully developing the artificial 
   neuron network, the project will transition into hardware implementation.
 
-Developer: QCAT FERMI*/
+Developer: QCAT FERMI
+
+*/
 
 
 #ifndef CMEMORY_H
