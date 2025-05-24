@@ -11,7 +11,7 @@ Project Development and Innovations:
 - Hardware integration(Raiden Mei Project): After successfully developing the artificial 
   neuron network, the project will transition into hardware implementation.
 
-Developer: QCAT FERMI
+Developer: Christopher Emmanuelle J. Visperas, Applied Physics Researcher
 
 Note in this neuron testing in this following 
     - beta or momentum factor is set to 0.9 and 0.9999 as default, and must be the constant parameter
@@ -28,6 +28,7 @@ Note in this neuron testing in this following
 constexpr double ALPHA = 0.01; // Adjust this value
 constexpr double EPSILON = 1e-8;
 constexpr double CLIP_GRAD = 10.0; // Gradient clipping limit
+#pragma once
 
 #include <iostream>
 //#include <cstdlib>   // for rand() and srand()
@@ -39,18 +40,17 @@ constexpr double CLIP_GRAD = 10.0; // Gradient clipping limit
 #include <algorithm> // for max_element, accumulate
 #include <numeric>   // for accumulate
 #include <cassert>   // for assert
-//#include <memory>
+#include <memory>
 
 using namespace std;
 
 // Enum for layer types
-enum neurontype { DEFAULT, HIDDEN, OUTPUT }; // Enum for neuron types
-enum normtype { MINMAX, SYMMETRIC, MEANCENTER, ZSCORE }; // Enum for normalization types
-enum actfunc { SIGMOID, RELU, TANH, LEAKY_RELU, ELU}; // Enum for activation functions
-enum optimizer { SGD, ADAGRAD, RMSPROP, ADAM}; // Enum for optimization algorithms
-enum lrs { CONSTANT, STEPDECAY, EXPDECAY, ITDECAY}; // Enum for learning rate adjustment strategies
-enum lossfunc { MSE, BCE, CCE, HUBER}; // Enum for loss functions
-enum lrmode {SUPERVISED, UNSUPERVISED, REINFORCEMENT, SELF_LEARNING, MULTI_TASK}; // Enum for learning modes
+enum NEURONTYPE { INPUT, HIDDEN, OUTPUT }; // Enum for neuron types
+enum ACTFUNC { SIGMOID, RELU, TANH, LEAKY_RELU, ELU}; // Enum for activation functions
+enum OPTIMIZER { SGD, ADAGRAD, RMSPROP, ADAM}; // Enum for optimization algorithms
+enum LEARNRATE { CONSTANT, STEPDECAY, EXPDECAY, ITDECAY}; // Enum for learning rate adjustment strategies
+enum LOSSFUNC { MSE, BCE, CCE, HUBER}; // Enum for loss functions
+
 
 // The Neuron class represents a single artificial neuron with support 
 // for various activation functions, optimizers, and learning rate schedules.
@@ -60,7 +60,7 @@ enum lrmode {SUPERVISED, UNSUPERVISED, REINFORCEMENT, SELF_LEARNING, MULTI_TASK}
 class Neuron {
     private:
         //neuron's parameter
-        int step_size, timestep = 0; // Training step parameters
+        int dropout_mask, step_size, timestep = 0; // Training step parameters
 
         //neuron's property
         vector<double> weight, // weights on each input
@@ -72,17 +72,16 @@ class Neuron {
         
         vector<vector<double>> momentum; // Momentum storage for optimizers
         double output, target, bias, 
-            error, error_Lb, activated_output, 
+            error = 1.0, error_Lb, activated_output, 
             gradient_bias, 
-            learning_rate, decay_rate; 
+            learning_rate, learn_rate, decay_rate, keep_probability; 
         
         vector<double> error_history; // Error history for analysis
-        actfunc actFunc; // Activation function type
-        lrs lr_schedule; // Learning rate adjustment strategy
-        optimizer opt; // Optimization algorithm
-        lossfunc lossFunc; // Loss function type
-        neurontype ntype; // Neuron type (input, hidden, output)
-        normtype ntype_norm; // Normalization type
+        ACTFUNC actFunc; // Activation function type
+        LEARNRATE lr_schedule; // Learning rate ad)justment strategy
+        OPTIMIZER opt; // Optimization algorithm
+        LOSSFUNC lossFunc; // Loss function type
+        NEURONTYPE ntype; // Neuron type (input, hidden, output)
 
         double randomInRange(double min, double max) {
             assert(min < max); // Ensure valid range
@@ -122,41 +121,50 @@ class Neuron {
             }
         }
 
+        void dropout_switch(){
+            dropout_mask = (randomInRange(0.0, 1.0) < keep_probability) ? 0.0 : 1.0;
+        }
+
+        double dropout_activation(double x){
+            return (ntype == OUTPUT) ? x : ((x * dropout_mask)/keep_probability);
+        }
+
         // Updates the learning rate based on the selected scheduling method
         void update_learning_rate() {
             switch (lr_schedule) {
                 case CONSTANT:
                     // Keep learning rate unchanged
                     //initial_error = error;
+                    learning_rate = learn_rate;
                     break;
                     
                 case STEPDECAY:
                     if (step_size > 0 && timestep % step_size == 0) {
                         //learning_rate[1] = learning_rate[1] * decay_rate; // Prevent underflow
-                        learning_rate *= decay_rate;
+                        learning_rate = learn_rate * decay_rate;
                     }
                     break;
                 
                 case EXPDECAY:
                     //learning_rate[1] = learning_rate[1] * exp(-decay_rate * timestep);
-                    learning_rate *= exp(-decay_rate * timestep);
+                    learning_rate = learn_rate * exp(-decay_rate * timestep);
                     break;
                     
                 case ITDECAY:
                     //learning_rate[1] = learning_rate[1] / (1 + (decay_rate * timestep));
-                    learning_rate /= (1 + (decay_rate * timestep));
+                    learning_rate = learn_rate/(1 + (decay_rate * timestep));
                     break;
             }
         }
 
     public:
         // Constructor for initializing neuron properties
-        Neuron(const vector<double>& inputs, 
-            const double& learning_rate, double decay_rate, const vector<double>& beta,
-            neurontype ntype, actfunc actFunc, lrs lr_schedule, optimizer opt, lossfunc lossFunc)
+        Neuron(vector<double> inputs, 
+            const double& learn_rate, const double& decay_rate, const vector<double>& beta,
+            NEURONTYPE ntype, ACTFUNC actFunc, LEARNRATE lr_schedule, OPTIMIZER opt, LOSSFUNC lossFunc)
             
             : input(inputs),
-            learning_rate(learning_rate), decay_rate(decay_rate), beta(beta),
+            learn_rate(learn_rate), decay_rate(decay_rate), beta(beta),
             ntype(ntype), actFunc(actFunc), lr_schedule(lr_schedule), opt(opt), lossFunc(lossFunc)
             
             {
@@ -196,64 +204,13 @@ class Neuron {
             }
         }
 
-        void normalization(normtype ntype_norm) {
-            this -> ntype_norm = ntype_norm;
-            double min = *min_element(input.begin(), input.end());
-            double max = *max_element(input.begin(), input.end());
-
-            double range = max - min;
-            assert(range > 0); // Ensure valid range
-
-            double mean = accumulate(input.begin(), input.end(), 0.0) / input.size();
-            double stddev = sqrt(accumulate(input.begin(), input.end(), 0.0, 
-                [mean](double sum, double val) { return sum + (val - mean) * (val - mean); }) / input.size());
-            assert(stddev > 0); // Ensure valid standard deviation
-
-            switch(ntype_norm) {
-                case MINMAX:
-                    for(size_t i = 0; i < input.size(); i++){
-                        assert(i < input.size()); // Ensure index is within limits
-                        input[i] = ((input[i] - min)/range);
-                        if(ntype == OUTPUT){target = (target - min)/range;}
-                    }
-                    break;
-
-                case SYMMETRIC:
-                    // Implement symmetric normalization
-                    for (size_t i = 0; i < input.size(); i++){
-                        assert(i < input.size()); // Ensure index is within limits
-                        input[i] = (2 * ((input[i] - min) / range)) - 1;
-                    }
-                    if(ntype == OUTPUT){target = (2 * ((target - min) / range)) - 1;}
-                    break;
-
-                case MEANCENTER:
-                    // Implement mean centering
-                    for (size_t i = 0; i < input.size(); i++){
-                        assert(i < input.size()); // Ensure index is within limits
-                        input[i] = (2 * ((input[i] - mean) / range)) - 1;
-                    }
-                    if(ntype == OUTPUT){target = (2 * ((target - mean) / range)) - 1;}
-                    break;
-
-                case ZSCORE:
-                    // Implement z-score normalization
-                    for (size_t i = 0; i < input.size(); i++){
-                        assert(i < input.size()); // Ensure index is within limits
-                        input[i] = (input[i] - mean) / stddev;
-                    }
-                    if(ntype == OUTPUT){target = (target - mean) / stddev;}
-                    break;
-            }
-        }
-
         // Computes the neuron's output using feedforward propagation
         void feedforward() {
             this->output = inner_product(input.begin(), input.end(), weight.begin(), bias);
 
-            assert(!isnan(output)); // Check for NaN output
-            
-            this->activated_output = activation_value(output);
+            //assert(!isnan(output)); // Check for NaN output
+            dropout_switch(); // Apply dropout
+            this->activated_output = dropout_activation(activation_value(output));
         }
 
         void regularizated(){
@@ -261,36 +218,36 @@ class Neuron {
                 assert(i < weight.size()); // Ensure index is within limits
                 
                 if(weight[i] > 0){error_Lw[i] = (2 * weight[i]) + 1;}
-                else if(weight[i] < 0){error_Lw[i] = (-2 * weight[i]) - 1;}
+                else if(weight[i] < 0){error_Lw[i] = -((2 * weight[i]) + 1);}
             }
 
             if(bias > 0){error_Lb =  (2 * bias) + 1;}
-            else if(bias < 0){error_Lb =  (-2 * bias) - 1;}
+            else if(bias < 0){error_Lb =  -((2 * bias) + 1);}
         }
 
         //To calculate the error between output and target
         void loss_derivative() {
-            assert(ntype == DEFAULT); // Ensure layer is output layer
+            //assert(ntype == OUTPUT); // Ensure layer is output layer
             switch (lossFunc) {
                 case MSE:
-                    error = target - activated_output; // Mean squared error
+                    this -> error = target - activated_output; // Mean squared error
                     break;
                     
                 case BCE:
-                    error = -(target / activated_output) + ((1 - target) / (1 - activated_output)); //Binary cross entropy
+                    this -> error = -(target / activated_output) + ((1 - target) / (1 - activated_output)); //Binary cross entropy
                     break;
                     
                 case CCE:
-                    error = -(target / activated_output); //Categorical cross entropy
+                    this -> error = -(target / activated_output); //Categorical cross entropy
                     break;
                     
                 case HUBER:
                     double delta = 1; // Huber loss delta
                     if (abs(target - activated_output) <= delta) {
-                        error =  target - activated_output;  // MSE region
+                        this -> error =  target - activated_output;  // MSE region
                         break;
                     } else {
-                        error = delta * (target - activated_output > 1 ? 1 : -1);  // MAE region
+                        this -> error = delta * (target - activated_output > 1 ? 1 : -1);  // MAE region
                         break;
                     }
             }
@@ -305,49 +262,44 @@ class Neuron {
             update_bias(); // Update bias
         }
 
-        void update_weights(){
-            #pragma omp parallel for 
-            //Updating the weights
+        void update_weights() {
+            #pragma omp parallel for
             for (size_t i = 0; i < weight.size(); ++i) {
-                assert(i < weight.size()); // Ensure index is within limits
-                gradient_weight[i] = (-(error + error_Lw[i]) * activation_derivative(output) * input[i]);
-
+                assert(i < weight.size()); // Ensure index is within bounds
+                gradient_weight[i] =  min(max((-(error + error_Lw[i]) * dropout_activation(activation_derivative(output)) * input[i]), -CLIP_GRAD), CLIP_GRAD); // Gradient clipping
+        
                 switch (opt) {
                     case SGD:
-                        this -> momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * gradient_weight[i]));
-                        this -> weight[i] -= (learning_rate * momentum[0][i]);
+                        this->momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * gradient_weight[i]));
+                        this->weight[i] -= (learning_rate * momentum[0][i]);
                         break;
-                    
+        
                     case ADAGRAD:
-                        this -> momentum[0][i] += pow(gradient_weight[i], 2);
-                        this -> weight[i] -= ((learning_rate * gradient_weight[i]) / (sqrt(momentum[0][i]) + EPSILON));
+                        this->momentum[0][i] += pow(gradient_weight[i], 2);
+                        this->weight[i] -= ((learning_rate * gradient_weight[i]) / (sqrt(max(momentum[0][i], EPSILON))));
                         break;
-                        
+        
                     case RMSPROP:
-                        this -> momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * pow(gradient_weight[i], 2)));
-                        this -> weight[i] -= ((learning_rate * gradient_weight[i]) / (sqrt(momentum[0][i] + EPSILON)));
+                        this->momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * pow(gradient_weight[i], 2)));
+                        this->weight[i] -= ((learning_rate * gradient_weight[i]) / (sqrt(max(momentum[0][i], EPSILON))));
                         break;
-                        
+        
                     case ADAM:
-                        // Compute first and second moment estimates                   
-
-                        this -> momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * gradient_weight[i]));
-                        this -> momentum[1][i] = ((beta[1] * momentum[1][i]) + ((1 - beta[1]) * pow(gradient_weight[i], 2)));
-
-                        // Correct bias
+                        this->momentum[0][i] = ((beta[0] * momentum[0][i]) + ((1 - beta[0]) * gradient_weight[i]));
+                        this->momentum[1][i] = ((beta[1] * momentum[1][i]) + ((1 - beta[1]) * pow(gradient_weight[i], 2)));
+        
                         double m_hat = (momentum[0][i] / (1 - pow(beta[0], timestep)));
                         double v_hat = (momentum[1][i] / (1 - pow(beta[1], timestep)));
-                        
-                        // Apply Adam update rule
-                        this -> weight[i] -= ((learning_rate * m_hat) / (sqrt(v_hat) + EPSILON));
+        
+                        this->weight[i] -= ((learning_rate * m_hat) / (sqrt(max(v_hat, EPSILON))));
                         break;
-                    }
+                }
             }
         }
 
         void update_bias(){
             // Bias update (same logic as weight updates)
-            gradient_bias = (-(error + error_Lb) * activation_derivative(output));
+            gradient_bias = min(max(-(error + error_Lb) * dropout_activation(activation_derivative(output)), -CLIP_GRAD), CLIP_GRAD); // Gradient clipping
             switch (opt) {
                 case SGD:
                     this -> bias -= (learning_rate * gradient_bias);
@@ -355,12 +307,12 @@ class Neuron {
                 
                 case ADAGRAD:
                     this -> m_bias[0] += pow(gradient_bias, 2);
-                    this -> bias -= ((learning_rate * gradient_bias) / (sqrt(m_bias[0]) + EPSILON));
+                    this -> bias -= ((learning_rate * gradient_bias) / (sqrt(max(m_bias[0], EPSILON))));
                     break;
                     
                 case RMSPROP:
                     this -> m_bias[0] = ((beta[0] * m_bias[0]) + ((1 - beta[0]) * pow(gradient_bias, 2)));
-                    this -> bias -= ((learning_rate * gradient_bias) / (sqrt(m_bias[0]) + EPSILON));
+                    this -> bias -= ((learning_rate * gradient_bias) / (sqrt(max(m_bias[0], EPSILON))));
                     break;
                     
                 case ADAM:
@@ -411,6 +363,7 @@ class Neuron {
                 //train_epoch(id, error_margin, switcher);
                 assert(error_margin > 0); // Validate error margi
                 feedforward();
+                loss_derivative();
                 if (switcher) {print_neuron(id);}
                 if (abs(error) < error_margin) {break;}// Stop training if error margin is reached
                 regularizated();
@@ -422,6 +375,7 @@ class Neuron {
         }*/
 
         // Getter functions for neuron parameters
+        int get_step_size() {return step_size;}
         vector <double> get_input() {return input;}
         double get_output() {return output;}
         double get_activated_output() {return activated_output;}
@@ -434,6 +388,9 @@ class Neuron {
         double get_timestep(){return timestep;}
 
         // Setter functions for neuron parameter
+        void set_dropout(const double& keep_prob) {
+            this -> keep_probability = keep_prob;
+        } //Setting the dropout rate
         void set_step_size(const int& stepsize){this -> step_size = stepsize;}
         void set_input(const vector<double>& inputs) {this -> input = inputs;}
         void set_target(const double& targets){this -> target = targets;} //Setting the target of the neuron

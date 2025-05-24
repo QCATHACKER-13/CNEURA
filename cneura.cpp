@@ -10,39 +10,58 @@ Future projects:
 - Hardware integration: After successfully developing the artificial 
   neuron network, the project will transition into hardware implementation.
 
-Developer: QCAT FERMI
-*/
+Developer: Christopher Emmanuelle J. Visperas, Applied Physics Researcher*/
 
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include "cneura.h"
+#include "../data_tools/cdata_tools.h"
 
 using namespace std;
 
 int main(){
     //Define the number of neuron on each layer
-    vector <size_t> num_neurons(9, 9); //= {3, 3, 3, 3};
+    vector <size_t> num_neurons (3, 9);//(2, 2); //= {3, 3, 3, 3};
     // Define input and target output
+    vector<double> inputs =  {5, 2, 4, 4, 1, 3, 8, 6, 7}; // Example target output
     vector<double> targets = {1, 2, 3, 4, 5, 6, 7, 8, 9};//{0.5, 0.1, 0.4}; // Example single input
-    vector<double> inputs = {7, 2, 5, 4, 6, 6, 4, 2, 6}; // Example target output
+    vector <double> label =  {0, 0, 0, 0, 0, 0, 0, 0, 1};
+    vector <double> keep_prob = {0.8, 0.5, 1.0}; // Dropout rates for each layer
+    vector<double> normalized_inputs = Data(inputs).dataset_normalization(SYMMETRIC); // Example single input
+    vector<double> normalized_targets = Data(inputs).targetdataset_normalization(SYMMETRIC, targets); // Example single target output
+    
+    // Define hyperparameters
     double learning_rate = 1e-2;
-    double decay_rate = 0.001;
+    double decay_rate = 1e-6;
     vector<double> beta = {0.9, 0.9999}; // Momentum factor for Adam
-    int step_size = 10; // For step decay learning rate
+    int step_size = 1000; // For step decay learning rate
 
     // Initialize Neural Network with Adam optimizer and Step Decay learning rate
     Neural neural(
-        num_neurons, inputs,
+        num_neurons, Data(inputs).dataset_normalization(SYMMETRIC),
         learning_rate, decay_rate, beta,
-        MEANCENTER, LEAKY_RELU, ITDECAY, ADAM, MSE
+        LEAKY_RELU, ITDECAY, ADAM, MSE
     );
+    
+    // Define hyperparameters
+    int epochs = 1000;
+    int batch_size = 1000;
 
     neural.set_step_size(step_size);
-    neural.set_target(targets, 1e-6);
+    neural.set_dropout(keep_prob); // Set dropout rate for regularization
+    neural.set_input(normalized_inputs);
+    neural.set_target(normalized_targets);
+    neural.set_softlabeling(label, 1e-6);
+    //neural.set_hardlabeling(label);
 
-    neural.feedforward();
-    neural.print();
-    neural.backpropagation();
+    //neural.feedforward();
+    //neural.probability();
+    //neural.backpropagation();
+
+    
+    // Train the network
+    neural.learning(step_size);
 
     return 0;
 }

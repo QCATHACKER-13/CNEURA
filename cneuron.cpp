@@ -10,13 +10,12 @@ Future projects:
 - Hardware integration: After successfully developing the artificial 
   neuron network, the project will transition into hardware implementation.
 
-Developer: QCAT FERMI
-
-*/
+Developer: Christopher Emmanuelle J. Visperas, Applied Physics Researcher*/
 
 #include <iostream>
 #include <vector>
 #include "cneuron.h"
+#include "../data_tools/cdata_tools.h"
 
 
 using namespace std;
@@ -24,7 +23,8 @@ using namespace std;
 int main() {
     // Define input and target output
     vector<double> inputs = {1.0, 2.0, 3.0, 4.0}; // Example single input
-    double target = 5; // Expected output
+    vector<double> normalized_inputs = Data(inputs).dataset_normalization(SYMMETRIC); // Normalized input
+    double target = Data(inputs).targetdata_normalization(SYMMETRIC, 3.25); // Expected output
 
     // Define learning rate and momentum for Adam optimizer
     double learning_rate = 1e-2;
@@ -42,15 +42,15 @@ int main() {
 
     // Initialize Neuron with Adam optimizer and Step Decay learning rate
     Neuron neuron(
-        inputs,
+        normalized_inputs, // Normalize input data
         learning_rate, decay_rate, beta,
-        OUTPUT, LEAKY_RELU, ITDECAY, ADAM, MSE
+        HIDDEN, LEAKY_RELU, ITDECAY, ADAM, MSE
     );
 
     neuron.set_step_size(step_size);
     neuron.set_target(target); // Set target value for training
+    neuron.set_dropout(0.5); // Set dropout rate for regularization
     neuron.initialize(); // Initialize weights and bias
-    neuron.normalization(SYMMETRIC); // Normalize input data
     // Train the neuron for 1000 epochs with an error margin of 0.01
     neuron.training(1, step_size, 0.05, true);
 
