@@ -3,4 +3,4 @@ CNEURA as start up project for a trained artificial neuron, neural layer, and ne
 
 This repository is an open repository of CNEURA for C++ development, it's free but respect the developers and others who collaborate their own ideas for innovation. Open criticism for this project.
 
-Please if you use this GitHub repository in your thesis references or any projects, mention me as QCAT FERMI and Christopher Emmanuelle Visperas. We have our neuron, neural layer, and neural net modules where separate from this public repository.
+Please if you use this GitHub repository in your thesis references or any projects, me as QCAT FERMI and Christopher Emmanuelle Visperas is my collaborator. We have our neuron, neural layer, and neural net modules where separate from this public repository.
